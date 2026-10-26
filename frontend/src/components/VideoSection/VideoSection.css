@@ -1,0 +1,743 @@
+/* ==========================================
+   VIDEO SECTION - PART 1
+========================================== */
+
+.videoSection{
+
+    position:relative;
+
+    overflow:hidden;
+
+    padding:120px 0;
+
+    margin-top: -200px;
+
+    background:
+    radial-gradient(circle at top left,#dff8e4 0%,transparent 35%),
+    radial-gradient(circle at bottom right,#fff2d2 0%,transparent 35%),
+    linear-gradient(
+    135deg,
+    #eefcf2 0%,
+    #fbfff9 45%,
+    #fffaf2 100%);
+
+}
+
+/* ==========================================
+   BACKGROUND GLOW
+========================================== */
+
+.videoGlow{
+
+    position:absolute;
+
+    border-radius:50%;
+
+    filter:blur(120px);
+
+    z-index:0;
+
+}
+
+.videoGlow1{
+
+    width:550px;
+
+    height:550px;
+
+    background:#22c55e20;
+
+    left:-180px;
+
+    top:-180px;
+
+}
+
+.videoGlow2{
+
+    width:500px;
+
+    height:500px;
+
+    background:#d4af3725;
+
+    right:-180px;
+
+    bottom:-180px;
+
+}
+
+/* ==========================================
+   GRID
+========================================== */
+
+.videoGrid{
+
+    position:relative;
+
+    z-index:2;
+
+    max-width:1280px;
+
+    margin:auto;
+
+    padding:0 20px;
+
+    display:grid;
+
+    grid-template-columns:1fr 430px;
+
+    gap:90px;
+
+    align-items:center;
+
+}
+
+/* ==========================================
+   LEFT CONTENT
+========================================== */
+
+.videoContent{
+
+    animation:fadeLeft .8s ease;
+
+}
+
+.videoBadge{
+
+    display:inline-flex;
+
+    align-items:center;
+
+    gap:10px;
+
+    padding:14px 24px;
+
+    border-radius:50px;
+
+    background:rgba(255,255,255,.8);
+
+    backdrop-filter:blur(18px);
+
+    box-shadow:0 15px 35px rgba(0,0,0,.08);
+
+    font-weight:700;
+
+    color:#0F8A43;
+
+    margin-bottom:28px;
+
+}
+
+.videoBadge svg{
+
+    color:#f7b500;
+
+}
+
+/* ==========================================
+   HEADING
+========================================== */
+
+.videoContent h2{
+
+    font-size:72px;
+
+    font-weight:800;
+
+    line-height:1.05;
+
+    color:#111;
+
+    margin-bottom:30px;
+
+}
+
+.videoContent h2 span{
+
+    color:#0F8A43;
+
+}
+
+.videoContent p{
+
+    max-width:650px;
+
+    font-size:22px;
+
+    line-height:1.9;
+
+    color:#666;
+
+    margin-bottom:40px;
+
+}
+
+/* ==========================================
+   FEATURES
+========================================== */
+
+.videoFeatures{
+
+    display:flex;
+
+    flex-direction:column;
+
+    gap:18px;
+
+}
+
+.videoFeatures div{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:15px;
+
+    font-size:18px;
+
+    font-weight:600;
+
+    color:#333;
+
+}
+
+.videoFeatures svg{
+
+    color:#0F8A43;
+
+    font-size:22px;
+
+}
+
+
+
+
+
+
+/* ==========================================
+   VIDEO CARD
+========================================== */
+
+.videoCard{
+
+position:relative;
+
+display:flex;
+
+flex-direction:column;
+
+align-items:center;
+
+justify-content:center;
+
+width:100%;
+
+max-width:420px;
+
+margin:auto;
+
+z-index:2;
+
+}
+
+/* ==========================================
+   VERTICAL VIDEO
+========================================== */
+
+.productVideo{
+
+width:65%;
+
+margin-left: 72px;
+margin-top: 80px;
+
+/* Vertical Reel Ratio */
+aspect-ratio:9/16;
+
+max-height:720px;
+
+border-radius:30px;
+
+object-fit:cover;
+
+background:#000;
+
+border:5px groove rgba(56, 53, 53, 0.7);
+
+box-shadow:
+0 35px 80px rgba(0,0,0,.18),
+0 0 0 1px rgba(255,255,255,.35);
+
+transition:.45s;
+
+cursor:pointer;
+
+}
+
+.productVideo:hover{
+
+transform:translateY(-8px) scale(1.02);
+
+box-shadow:
+0 45px 100px rgba(15,138,67,.25);
+
+}
+
+/* ==========================================
+   PLAY BUTTON
+========================================== */
+
+.playButton{
+
+position:absolute;
+
+top:50%;
+
+left:50%;
+
+transform:translate(-50%,-50%);
+
+width:95px;
+
+height:95px;
+
+border-radius:50%;
+
+display:flex;
+
+align-items:center;
+
+justify-content:center;
+
+background:rgba(15,138,67,.92);
+
+color:#fff;
+
+font-size:34px;
+
+backdrop-filter:blur(10px);
+
+box-shadow:0 20px 50px rgba(15,138,67,.35);
+
+pointer-events:none;
+
+animation:pulsePlay 2s infinite;
+
+z-index:5;
+
+}
+
+/* Hide play icon after play */
+
+.videoCard:hover .playButton{
+
+opacity:.9;
+
+}
+
+/* ==========================================
+   VIDEO INFO
+========================================== */
+
+.videoInfo{
+
+margin-top:24px;
+
+text-align:center;
+
+}
+
+.videoInfo h3{
+
+font-size:30px;
+
+font-weight:800;
+
+color:#111;
+
+margin-bottom:8px;
+
+}
+
+.videoInfo p{
+
+font-size:17px;
+
+color:#666;
+
+line-height:1.7;
+
+}
+
+
+
+
+
+
+/* ==========================================
+   BOTTOM STATS
+========================================== */
+
+.videoStats{
+
+margin-top:90px;
+
+display:grid;
+
+grid-template-columns:repeat(4,1fr);
+
+gap:25px;
+
+}
+
+.videoStats div{
+
+background:rgba(255,255,255,.75);
+
+backdrop-filter:blur(18px);
+
+border-radius:22px;
+
+padding:28px 20px;
+
+text-align:center;
+
+box-shadow:0 18px 45px rgba(0,0,0,.08);
+
+transition:.35s;
+
+font-size:30px;
+
+font-weight:700;
+
+color:#111;
+
+border:1px solid rgba(255,255,255,.5);
+
+}
+
+.videoStats div:hover{
+
+transform:translateY(-10px);
+
+box-shadow:0 28px 65px rgba(15,138,67,.18);
+
+}
+
+.videoStats span{
+
+display:block;
+
+margin-top:12px;
+
+font-size:16px;
+
+font-weight:600;
+
+color:#666;
+
+}
+
+/* ==========================================
+   ANIMATIONS
+========================================== */
+
+@keyframes fadeLeft{
+
+from{
+
+opacity:0;
+
+transform:translateX(-50px);
+
+}
+
+to{
+
+opacity:1;
+
+transform:translateX(0);
+
+}
+
+}
+
+@keyframes pulsePlay{
+
+0%{
+
+transform:translate(-50%,-50%) scale(1);
+
+box-shadow:0 0 0 0 rgba(15,138,67,.45);
+
+}
+
+70%{
+
+transform:translate(-50%,-50%) scale(1.08);
+
+box-shadow:0 0 0 28px rgba(15,138,67,0);
+
+}
+
+100%{
+
+transform:translate(-50%,-50%) scale(1);
+
+box-shadow:0 0 0 0 rgba(15,138,67,0);
+
+}
+
+}
+
+/* ==========================================
+   TABLET
+========================================== */
+
+@media(max-width:992px){
+
+.videoGrid{
+
+grid-template-columns:1fr;
+
+gap:60px;
+
+text-align:center;
+
+}
+
+.videoContent{
+
+display:flex;
+
+flex-direction:column;
+
+align-items:center;
+
+}
+
+.videoContent h2{
+
+font-size:50px;
+
+}
+
+.videoContent p{
+
+max-width:100%;
+
+}
+
+.videoFeatures{
+
+align-items:center;
+
+}
+
+.videoCard{
+
+max-width:360px;
+
+}
+
+.productVideo{
+
+max-height:620px;
+
+}
+
+.videoStats{
+
+grid-template-columns:repeat(2,1fr);
+
+margin-top:70px;
+
+}
+
+}
+
+/* ==========================================
+   MOBILE
+========================================== */
+
+@media(max-width:768px){
+
+.videoSection{
+
+padding:80px 0;
+
+
+
+
+
+}
+
+.videoContent h2{
+
+font-size:36px;
+
+line-height:1.2;
+
+}
+
+.videoContent p{
+
+font-size:16px;
+
+}
+
+.videoBadge{
+
+font-size:13px;
+
+padding:12px 18px;
+
+}
+
+.videoFeatures div{
+
+font-size:15px;
+
+justify-content:center;
+
+}
+
+.videoCard{
+
+max-width:280px;
+
+}
+
+.productVideo{
+
+border-radius:22px;
+
+border-width:5px;
+
+max-height:500px;
+
+}
+
+.playButton{
+
+width:70px;
+
+height:70px;
+
+font-size:24px;
+
+}
+
+.videoInfo h3{
+
+font-size:24px;
+
+}
+
+.videoInfo p{
+
+font-size:15px;
+
+}
+
+.videoStats{
+
+grid-template-columns:1fr;
+
+gap:18px;
+
+margin-top:55px;
+
+}
+
+.videoStats div{
+
+padding:22px;
+
+font-size:24px;
+
+}
+
+.videoStats span{
+
+font-size:15px;
+
+}
+
+}
+
+/* ==========================================
+   EXTRA SMALL
+========================================== */
+
+@media(max-width:480px){
+
+.videoSection{
+
+padding:65px 0;
+
+
+
+}
+
+.videoContent h2{
+
+font-size:30px;
+
+}
+
+.videoContent p{
+
+font-size:15px;
+
+}
+
+.videoCard{
+
+max-width:240px;
+
+}
+
+.productVideo{
+
+max-height:430px;
+margin-left: -4px;
+
+}
+
+.playButton{
+
+width:58px;
+
+height:58px;
+
+font-size:20px;
+
+}
+
+.videoInfo h3{
+
+font-size:20px;
+
+}
+
+.videoStats div{
+
+padding:18px;
+
+font-size:20px;
+
+}
+
+.videoStats span{
+
+font-size:14px;
+
+}
+
+}
+
+
+

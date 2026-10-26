@@ -1,0 +1,95 @@
+/* ==========================================
+   WHATSAPP FLOAT (DESKTOP VIEW)
+========================================== */
+.whatsappFloat {
+  position: fixed;
+  right: 25px;
+  bottom: 110px; /* Desktop par thoda aur upar shift kar diya */
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 24px; /* Padding thodi badhai bade icon ke sath match karne ke liye */
+  border-radius: 50px;
+  background: linear-gradient(135deg, #25D366, #128C7E);
+  color: #fff;
+  text-decoration: none;
+  font-size: 16px; /* Text thoda clear kiya */
+  font-weight: 700;
+  box-shadow: 0 10px 30px rgba(37, 211, 102, 0.4);
+  animation: whatsappPulse 2s infinite, slideIn 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: 0.3s;
+}
+
+.whatsappFloat svg {
+  font-size: 32px; /* Fixed: Desktop par icon size bada kar diya (pehle 26px tha) */
+  flex-shrink: 0;
+}
+
+.whatsappFloat:hover {
+  transform: translateY(-4px) scale(1.04);
+  box-shadow: 0 18px 45px rgba(37, 211, 102, 0.55);
+}
+
+.whatsappFloat span {
+  white-space: nowrap;
+}
+
+/* ==========================================
+   PULSE EFFECT ANIMATION
+========================================== */
+@keyframes whatsappPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 18px rgba(37, 211, 102, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(37, 211, 102, 0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(60px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ==========================================
+   MOBILE VIEW (ABOVE STICKY BAR)
+========================================== */
+@media (max-width: 768px) {
+  .whatsappFloat {
+    right: 20px; /* Side se space thoda badhaya premium look ke liye */
+    bottom: 85px; /* Fixed: Mobile par thoda upar kar diya (pehle 65px tha) */
+    padding: 14px; /* Container rounded circle badaya bade icon ke liye */
+    border-radius: 50%;
+    box-shadow: 0 8px 25px rgba(37, 211, 102, 0.4);
+  }
+
+  .whatsappFloat span {
+    display: none; /* Mobile par text hide rahega, sirf round icon dikhega */
+  }
+
+  .whatsappFloat svg {
+    font-size: 34px; /* Fixed: Mobile par icon kaafi bada aur clear kar diya (pehle 28px tha) */
+  }
+}
+
+/* Extra small mobile check */
+@media (max-width: 380px) {
+  .whatsappFloat {
+    right: 16px;
+    bottom: 60px;
+    padding: 12px;
+  }
+  .whatsappFloat svg {
+    font-size: 30px;
+  }
+}

@@ -1,0 +1,741 @@
+/* ==========================================
+   BEFORE & AFTER SECTION
+========================================== */
+
+.beforeAfter{
+
+position:relative;
+
+overflow:hidden;
+
+padding:120px 0;
+
+margin-top: -220px;
+
+background:
+radial-gradient(circle at top left,#dff8e4 0%,transparent 35%),
+radial-gradient(circle at bottom right,#fff2d2 0%,transparent 35%),
+linear-gradient(
+135deg,
+#eefcf2 0%,
+#fbfff9 45%,
+#fffaf2 100%);
+
+}
+
+/* ==========================================
+   BACKGROUND GLOW
+========================================== */
+
+.baGlow{
+
+position:absolute;
+
+border-radius:50%;
+
+filter:blur(120px);
+
+z-index:0;
+
+}
+
+.baGlow1{
+
+width:520px;
+
+height:520px;
+
+background:#22c55e25;
+
+left:-180px;
+
+top:-180px;
+
+}
+
+.baGlow2{
+
+width:500px;
+
+height:500px;
+
+background:#d4af3725;
+
+right:-180px;
+
+bottom:-180px;
+
+}
+
+/* ==========================================
+   HEADING
+========================================== */
+
+.baHeading{
+
+position:relative;
+
+z-index:2;
+
+text-align:center;
+
+max-width:850px;
+
+margin:0 auto 80px;
+
+}
+
+.baHeading span{
+
+display:inline-flex;
+
+align-items:center;
+
+gap:10px;
+
+padding:14px 26px;
+
+border-radius:50px;
+
+background:rgba(255,255,255,.75);
+
+backdrop-filter:blur(18px);
+
+box-shadow:0 12px 35px rgba(0,0,0,.08);
+
+font-size:15px;
+
+font-weight:700;
+
+color:#0F8A43;
+
+margin-bottom:28px;
+
+}
+
+.baHeading span svg{
+
+color:#f7b500;
+
+}
+
+.baHeading h2{
+
+font-size:68px;
+
+font-weight:800;
+
+line-height:1.05;
+
+color:#111;
+
+margin-bottom:24px;
+
+}
+
+.baHeading h2 span{
+
+background:none;
+
+padding:0;
+
+box-shadow:none;
+
+color:#0F8A43;
+
+display:inline;
+
+}
+
+.baHeading p{
+
+font-size:20px;
+
+line-height:1.9;
+
+color:#666;
+
+max-width:700px;
+
+margin:auto;
+
+}
+
+/* ==========================================
+   GRID
+========================================== */
+
+.baGrid{
+
+position:relative;
+
+z-index:2;
+
+display:grid;
+
+grid-template-columns:1fr 120px 1fr;
+
+align-items:center;
+
+gap:40px;
+
+}
+
+
+
+
+
+
+
+
+
+
+/* ==========================================
+   BEFORE & AFTER CARDS
+========================================== */
+
+.baCard{
+
+position:relative;
+
+background:rgba(255,255,255,.78);
+
+backdrop-filter:blur(20px);
+
+border:1px solid rgba(255,255,255,.45);
+
+border-radius:34px;
+
+padding:35px;
+
+box-shadow:0 25px 60px rgba(0,0,0,.08);
+
+transition:.45s;
+
+overflow:hidden;
+
+}
+
+.baCard::before{
+
+content:"";
+
+position:absolute;
+
+top:0;
+
+left:-100%;
+
+width:100%;
+
+height:100%;
+
+background:linear-gradient(
+90deg,
+transparent,
+rgba(255,255,255,.35),
+transparent
+);
+
+transition:.7s;
+
+}
+
+.baCard:hover::before{
+
+left:100%;
+
+}
+
+.baCard:hover{
+
+transform:translateY(-12px);
+
+box-shadow:0 35px 80px rgba(15,138,67,.18);
+
+}
+
+/* ==========================================
+   BEFORE / AFTER IMAGE
+========================================== */
+
+.baImage{
+
+width:100%;
+
+height:420px;
+
+border-radius:26px;
+
+overflow:hidden;
+
+margin-bottom:28px;
+
+background:#f6f6f6;
+
+}
+
+.baImage img{
+
+width:100%;
+
+height:100%;
+
+object-fit:cover;
+
+display:block;
+
+transition:.45s;
+
+}
+
+.baCard:hover .baImage img{
+
+transform:scale(1.08);
+
+}
+
+/* ==========================================
+   CARD TITLE
+========================================== */
+
+.baCard h3{
+
+text-align:center;
+
+font-size:34px;
+
+font-weight:800;
+
+margin-bottom:30px;
+
+letter-spacing:1px;
+
+}
+
+.beforeCard h3{
+
+color:#e53935;
+
+}
+
+.afterCard h3{
+
+color:#0F8A43;
+
+}
+
+/* ==========================================
+   LIST
+========================================== */
+
+.baCard ul{
+
+list-style:none;
+
+display:flex;
+
+flex-direction:column;
+
+gap:20px;
+
+}
+
+.baCard li{
+
+display:flex;
+
+align-items:center;
+
+gap:14px;
+
+font-size:18px;
+
+font-weight:600;
+
+color:#333;
+
+}
+
+.beforeCard li svg{
+
+font-size:22px;
+
+color:#ef4444;
+
+}
+
+.afterCard li svg{
+
+font-size:22px;
+
+color:#16a34a;
+
+}
+
+/* ==========================================
+   VS CIRCLE
+========================================== */
+
+.vsCircle{
+
+width:95px;
+
+height:95px;
+
+margin:auto;
+
+border-radius:50%;
+
+display:flex;
+
+align-items:center;
+
+justify-content:center;
+
+font-size:34px;
+
+color:#fff;
+
+font-weight:800;
+
+background:linear-gradient(135deg,#19b655,#087234);
+
+box-shadow:0 20px 50px rgba(15,138,67,.35);
+
+animation:vsPulse 2.5s infinite;
+
+}
+
+
+
+
+/* ==========================================
+   TRUST BAR
+========================================== */
+
+.baTrust{
+
+margin-top:80px;
+
+display:grid;
+
+grid-template-columns:repeat(3,1fr);
+
+gap:25px;
+
+position:relative;
+
+z-index:2;
+
+}
+
+.baTrust div{
+
+display:flex;
+
+align-items:center;
+
+justify-content:center;
+
+gap:14px;
+
+padding:26px;
+
+background:rgba(255,255,255,.75);
+
+backdrop-filter:blur(18px);
+
+border:1px solid rgba(255,255,255,.45);
+
+border-radius:22px;
+
+box-shadow:0 18px 45px rgba(0,0,0,.08);
+
+transition:.35s;
+
+font-size:18px;
+
+font-weight:700;
+
+color:#222;
+
+}
+
+.baTrust div:hover{
+
+transform:translateY(-8px);
+
+box-shadow:0 28px 60px rgba(15,138,67,.18);
+
+}
+
+.baTrust svg{
+
+font-size:28px;
+
+color:#0F8A43;
+
+}
+
+.baTrust span{
+
+font-size:17px;
+
+font-weight:600;
+
+}
+
+/* ==========================================
+   ANIMATIONS
+========================================== */
+
+@keyframes vsPulse{
+
+0%{
+
+transform:scale(1);
+
+box-shadow:0 0 0 0 rgba(15,138,67,.35);
+
+}
+
+70%{
+
+transform:scale(1.08);
+
+box-shadow:0 0 0 28px rgba(15,138,67,0);
+
+}
+
+100%{
+
+transform:scale(1);
+
+box-shadow:0 0 0 0 rgba(15,138,67,0);
+
+}
+
+}
+
+/* ==========================================
+   TABLET
+========================================== */
+
+@media(max-width:992px){
+
+.beforeAfter{
+
+padding:90px 0;
+
+}
+
+.baHeading{
+
+margin-bottom:60px;
+
+}
+
+.baHeading h2{
+
+font-size:48px;
+
+}
+
+.baHeading p{
+
+font-size:18px;
+
+}
+
+.baGrid{
+
+grid-template-columns:1fr;
+
+gap:35px;
+
+}
+
+.vsCircle{
+
+transform:rotate(90deg);
+
+}
+
+.baImage{
+
+height:340px;
+
+}
+
+.baTrust{
+
+grid-template-columns:1fr;
+
+gap:18px;
+
+}
+
+}
+
+/* ==========================================
+   MOBILE
+========================================== */
+
+@media(max-width:768px){
+
+.beforeAfter{
+
+padding:70px 0;
+
+}
+
+.baHeading{
+
+margin-bottom:45px;
+
+}
+
+.baHeading h2{
+
+font-size:34px;
+
+line-height:1.2;
+
+}
+
+.baHeading p{
+
+font-size:16px;
+
+line-height:1.7;
+
+}
+
+.baHeading span{
+
+font-size:13px;
+
+padding:12px 18px;
+
+}
+
+.baCard{
+
+padding:22px;
+
+border-radius:24px;
+
+}
+
+.baImage{
+
+height:260px;
+
+margin-bottom:20px;
+
+}
+
+.baCard h3{
+
+font-size:26px;
+
+margin-bottom:20px;
+
+}
+
+.baCard li{
+
+font-size:15px;
+
+gap:10px;
+
+}
+
+.baCard li svg{
+
+font-size:18px;
+
+}
+
+.vsCircle{
+
+width:70px;
+
+height:70px;
+
+font-size:24px;
+
+}
+
+.baTrust{
+
+margin-top:45px;
+
+}
+
+.baTrust div{
+
+padding:18px;
+
+font-size:15px;
+
+}
+
+.baTrust span{
+
+font-size:15px;
+
+}
+
+}
+
+/* ==========================================
+   EXTRA SMALL
+========================================== */
+
+@media(max-width:480px){
+
+.baHeading h2{
+
+font-size:28px;
+
+}
+
+.baHeading p{
+
+font-size:15px;
+
+}
+
+.baImage{
+
+height:220px;
+
+}
+
+.baCard{
+
+padding:18px;
+
+}
+
+.baCard h3{
+
+font-size:22px;
+
+}
+
+.baCard li{
+
+font-size:14px;
+
+}
+
+.baTrust div{
+
+padding:16px;
+
+}
+
+}
