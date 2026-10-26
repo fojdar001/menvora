@@ -4,16 +4,16 @@ const mongoose = require('mongoose');
 const nodemailer = require('nodemailer');
 const PDFDocument = require('pdfkit');
 const jwt = require('jsonwebtoken');
-const axios = require('axios');
 const crypto = require('crypto');
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const pino = require('pino');
-const qrcode = require('qrcode-terminal');
+const qrcode = require('qrcode'); // Browser QR rendering ke liye
+const qrcodeTerminal = require('qrcode-terminal');
 require('dotenv').config();
 
 const app = express();
 
-// ==================== UNIVERSAL CORS FIX FOR VERCEL SERVERLESS ====================
+// ==================== UNIVERSAL CORS FIX ====================
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -28,14 +28,15 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
-// ENVIRONMENT VARIABLES
+// ENVIRONMENT VARIABLES CONFIGURATION
 const JWT_SECRET = process.env.JWT_SECRET || 'menvora_secret_key_123';
 const MONGO_URI = process.env.MONGO_URI;
-const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || "";
-const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || "";
+const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || "rzp_live_TsUqPWXB1ZVKKJ";
+const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || "JdMrJsY9yH6vgVijtMwbZ2iI";
 
 // ==================== BAILEYS WHATSAPP BOT INITIALIZATION ====================
 let sock = null;
+let latestQR = null; // Browser me QR dikhane ke liye
 
 async function connectToWhatsApp() {
   try {
@@ -51,8 +52,9 @@ async function connectToWhatsApp() {
       const { connection, lastDisconnect, qr } = update;
       
       if (qr) {
-        console.log('📌 Scan this QR code with your WhatsApp:');
-        qrcode.generate(qr, { small: true });
+        latestQR = qr; // Save QR for browser endpoint
+        console.log('📌 Scan this QR code with your WhatsApp or visit /qr route in browser:');
+        qrcodeTerminal.generate(qr, { small: true });
       }
 
       if (connection === 'close') {
@@ -62,6 +64,7 @@ async function connectToWhatsApp() {
           connectToWhatsApp();
         }
       } else if (connection === 'open') {
+        latestQR = null; // Connected, clear QR
         console.log('✅ Free WhatsApp Bot Connected Successfully!');
       }
     });
@@ -74,6 +77,25 @@ async function connectToWhatsApp() {
 
 // Start WhatsApp socket connection
 connectToWhatsApp();
+
+// BROWSER QR ROUTE (Scan easily from browser if terminal fails)
+app.get('/qr', async (req, res) => {
+  if (!latestQR) {
+    return res.send(`<h2>✅ WhatsApp is already connected or QR code is not generated yet! Check server logs.</h2>`);
+  }
+  try {
+    const qrImage = await qrcode.toDataURL(latestQR);
+    res.send(`
+      <div style="text-align: center; margin-top: 50px; font-family: Arial;">
+        <h2>Scan WhatsApp QR Code for Menvora Ayurveda</h2>
+        <p>Open WhatsApp on your phone -> Linked Devices -> Link a Device</p>
+        <img src="${qrImage}" alt="WhatsApp QR Code" style="width: 300px; height: 300px; border: 2px solid #ccc; padding: 10px; border-radius: 10px;" />
+      </div>
+    `);
+  } catch (err) {
+    res.status(500).send("Error generating QR code image.");
+  }
+});
 
 // UNIVERSAL FUNCTION TO SEND FREE WHATSAPP MESSAGES VIA BAILEYS
 async function sendFreeWhatsAppMessage(phone, messageText) {
@@ -95,7 +117,7 @@ async function sendFreeWhatsAppMessage(phone, messageText) {
   }
 }
 
-// ROBUST NON-BLOCKING MONGO DB CONNECTION FOR SERVERLESS / HOSTING
+// ROBUST NON-BLOCKING MONGO DB CONNECTION
 async function connectDB() {
   if (mongoose.connection.readyState === 1) {
     return;
@@ -160,8 +182,8 @@ const razorpay = new Razorpay({
 });
 
 // NODEMAILER TRANSPORTER FOR PRIMARY INBOX DELIVERY
-const emailUser = process.env.EMAIL_USER || "";
-const emailPass = (process.env.EMAIL_PASS || "").replace(/\s+/g, '');
+const emailUser = process.env.EMAIL_USER || "menvoraayurveda@gmail.com";
+const emailPass = (process.env.EMAIL_PASS || "mvskzvezflsqtprp").replace(/\s+/g, '');
 
 const mailTransporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
@@ -316,7 +338,7 @@ app.post('/api/auth/send-otp', async (req, res) => {
     const generatedOtp = Math.floor(1000 + Math.random() * 9000).toString();
     const messageText = `*MENVORA AYURVEDA*\n\nYour login verification OTP is *${generatedOtp}*.\n\nValid for 5 minutes. Do not share with anyone.`;
 
-    const whatsappSent = await sendFreeWhatsAppMessage(cleanPhone, messageText);
+    await sendFreeWhatsAppMessage(cleanPhone, messageText);
 
     try {
       if (mongoose.connection.readyState >= 1) {
@@ -419,7 +441,7 @@ app.post('/api/create-order', async (req, res) => {
   }
 });
 
-// SAVE ORDER ROUTE (Resilient, Non-blocking DB save with Free Baileys WhatsApp Trigger)
+// SAVE ORDER ROUTE
 app.post('/api/save-order', verifyToken, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1 && MONGO_URI) {
@@ -486,7 +508,7 @@ app.post('/api/save-order', verifyToken, async (req, res) => {
     }
 
     // 🚀 Send Free WhatsApp Order Confirmation Non-blocking
-    const messageText = `*MENVORA AYURVEDA*\n\nCongratulations ${savedOrder.fullName || 'Customer'}! 🎉\n\nYour order *${savedOrder.billNo}* has been placed successfully!\n\n📦 *Order Details:*\n• Package: ${savedOrder.packageName}\n• Amount: ₹${savedOrder.totalAmount}\n• Payment Mode: ${(savedOrder.paymentMethod || 'COD').toUpperCase()}\n\n🚚 *Delivery Status:*\nYour package is being prepared for dispatch and will be delivered within *1 to 2 business days*.\n\nThank you for choosing Menvora Ayurveda! 🌿`;
+    const messageText = `*MENVORA AYURVEDA*\n\nCongratulations ${savedOrder.fullName || 'Customer'}! 🎉\n\nYour order *${savedOrder.billNo}* has been placed successfully!\n\n📦 *Order Details:*\nPackage: ${savedOrder.packageName}\nAmount: ₹${savedOrder.totalAmount}\nPayment Mode: ${(savedOrder.paymentMethod || 'COD').toUpperCase()}\n\n🚚 *Delivery Status:*\nYour package is being prepared for dispatch and will be delivered within *1 to 2 business days*.\n\nThank you for choosing Menvora Ayurveda! 🌿`;
     
     sendFreeWhatsAppMessage(savedOrder.phone, messageText).catch(err => console.error("WA Msg Fail:", err));
 

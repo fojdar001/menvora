@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
 
-const BACKEND_URL = "https://menvora-backend.vercel.app";
+const BACKEND_URL = "https://menvora-backend.onrender.com";
 
 export default function Login({ isOpen = true, onClose, onSuccess }) {
   const [phone, setPhone] = useState("");
