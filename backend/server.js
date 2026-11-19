@@ -7,7 +7,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const pino = require('pino');
-const qrcode = require('qrcode'); // Browser QR rendering ke liye
+const qrcode = require('qrcode');
 const qrcodeTerminal = require('qrcode-terminal');
 require('dotenv').config();
 
@@ -34,9 +34,9 @@ const MONGO_URI = process.env.MONGO_URI;
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || "rzp_live_TsUqPWXB1ZVKKJ";
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || "JdMrJsY9yH6vgVijtMwbZ2iI";
 
-// ==================== BAILEYS WHATSAPP BOT INITIALIZATION ====================
+// ==================== WHATSAPP BOT (ORDER CONFIRMATION ONLY - NO OTP) ====================
 let sock = null;
-let latestQR = null; // Browser me QR dikhane ke liye
+let latestQR = null;
 
 async function connectToWhatsApp() {
   try {
@@ -50,10 +50,10 @@ async function connectToWhatsApp() {
 
     sock.ev.on('connection.update', (update) => {
       const { connection, lastDisconnect, qr } = update;
-      
+
       if (qr) {
-        latestQR = qr; // Save QR for browser endpoint
-        console.log('📌 Scan this QR code with your WhatsApp or visit /qr route in browser:');
+        latestQR = qr;
+        console.log('📌 Scan this WhatsApp QR code or visit /qr in browser:');
         qrcodeTerminal.generate(qr, { small: true });
       }
 
@@ -64,8 +64,8 @@ async function connectToWhatsApp() {
           connectToWhatsApp();
         }
       } else if (connection === 'open') {
-        latestQR = null; // Connected, clear QR
-        console.log('✅ Free WhatsApp Bot Connected Successfully!');
+        latestQR = null;
+        console.log('✅ WhatsApp Bot Connected for Order Confirmations!');
       }
     });
 
@@ -75,10 +75,8 @@ async function connectToWhatsApp() {
   }
 }
 
-// Start WhatsApp socket connection
 connectToWhatsApp();
 
-// BROWSER QR ROUTE (Scan easily from browser if terminal fails)
 app.get('/qr', async (req, res) => {
   if (!latestQR) {
     return res.send(`<h2>✅ WhatsApp is already connected or QR code is not generated yet! Check server logs.</h2>`);
@@ -97,22 +95,31 @@ app.get('/qr', async (req, res) => {
   }
 });
 
-// UNIVERSAL FUNCTION TO SEND FREE WHATSAPP MESSAGES VIA BAILEYS
-async function sendFreeWhatsAppMessage(phone, messageText) {
+// HELPER: Normalize Phone Number (Ensure 10 digits)
+function parse10DigitPhone(phone) {
+  if (!phone) return "";
+  let cleaned = String(phone).trim().replace(/\D/g, "");
+  if (cleaned.length > 10) {
+    cleaned = cleaned.slice(-10);
+  }
+  return cleaned;
+}
+
+async function sendOrderWhatsAppMessage(phone, messageText) {
   try {
     if (!sock) {
-      console.error("🛑 WhatsApp socket not initialized yet.");
+      console.warn("⚠️ WhatsApp socket not ready yet.");
       return false;
     }
-    const cleanPhone = String(phone).trim().replace(/\D/g, "").slice(-10);
+    const cleanPhone = parse10DigitPhone(phone);
     if (cleanPhone.length !== 10) return false;
 
     const jid = `91${cleanPhone}@s.whatsapp.net`;
     await sock.sendMessage(jid, { text: messageText });
-    console.log(`💬 Free WhatsApp message sent successfully to 91${cleanPhone}`);
+    console.log(`💬 WhatsApp order message sent to 91${cleanPhone}`);
     return true;
   } catch (err) {
-    console.error("🛑 Baileys Send Error:", err.message);
+    console.error("🛑 WhatsApp Send Error:", err.message);
     return false;
   }
 }
@@ -120,20 +127,22 @@ async function sendFreeWhatsAppMessage(phone, messageText) {
 // ROBUST NON-BLOCKING MONGO DB CONNECTION
 async function connectDB() {
   if (mongoose.connection.readyState === 1) {
-    return;
+    return true;
   }
   if (!MONGO_URI) {
     console.warn("⚠️ MONGO_URI environment variable is not set!");
-    return;
+    return false;
   }
   try {
     await mongoose.connect(MONGO_URI, {
-      serverSelectionTimeoutMS: 3000,
+      serverSelectionTimeoutMS: 5000,
       bufferCommands: false,
     });
     console.log("🔥 MongoDB Connected Successfully.");
+    return true;
   } catch (err) {
     console.error("🛑 DB Connection Error:", err.message);
+    return false;
   }
 }
 
@@ -143,14 +152,6 @@ app.use(async (req, res, next) => {
 });
 
 // SCHEMAS & MODELS
-const otpSchema = new mongoose.Schema({
-  phone: { type: String, required: true, index: true },
-  otp: { type: String, required: true },
-  createdAt: { type: Date, default: Date.now, expires: 300 }
-});
-
-const OtpModel = mongoose.models.Otp || mongoose.model('Otp', otpSchema);
-
 const orderSchema = new mongoose.Schema({
   billNo: { type: String, required: true, unique: true },
   fullName: { type: String, required: true },
@@ -163,8 +164,8 @@ const orderSchema = new mongoose.Schema({
   landmark: { type: String, default: "" },
   packageName: { type: String, default: "Menvora Product" },
   quantity: { type: Number, default: 1 },
-  baseAmount: { type: Number, default: 951.43 }, 
-  gstAmount: { type: Number, default: 47.57 },    
+  baseAmount: { type: Number, default: 951.43 },
+  gstAmount: { type: Number, default: 47.57 },
   totalAmount: { type: Number, required: true },
   paymentMethod: { type: String, required: true },
   paymentStatus: { type: String, default: 'Pending' },
@@ -198,31 +199,18 @@ const mailTransporter = nodemailer.createTransport({
   }
 });
 
-// AUTHENTICATION MIDDLEWARE
-function verifyToken(req, res, next) {
+// OPTIONAL TOKEN PARSER (Direct checkout ke liye token optional hai)
+function optionalAuth(req, res, next) {
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ success: false, message: 'Unauthorized access' });
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    try {
+      req.user = jwt.verify(token, JWT_SECRET);
+    } catch (err) {
+      // Ignore invalid/expired token for direct guest checkout
+    }
   }
-
-  const token = authHeader.split(' ')[1];
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch (err) {
-    return res.status(401).json({ success: false, message: 'Invalid or expired token' });
-  }
-}
-
-// HELPER: Normalize Phone Number (Ensure 10 digits)
-function parse10DigitPhone(phone) {
-  if (!phone) return "";
-  let cleaned = String(phone).trim().replace(/\D/g, "");
-  if (cleaned.length > 10) {
-    cleaned = cleaned.slice(-10);
-  }
-  return cleaned;
+  next();
 }
 
 // PDF TAX INVOICE GENERATOR
@@ -323,113 +311,18 @@ function generateFastBillNo() {
   return `INV-${currentYear}-${randomSuffix}`;
 }
 
-// ==================== AUTHENTICATION ROUTES ====================
-
-// 1. SEND OTP ROUTE (Using Free Baileys WhatsApp)
-app.post('/api/auth/send-otp', async (req, res) => {
-  try {
-    const { phone } = req.body;
-    const cleanPhone = parse10DigitPhone(phone);
-
-    if (!cleanPhone || cleanPhone.length !== 10) {
-      return res.status(400).json({ success: false, message: "Valid 10-digit mobile number is required" });
-    }
-
-    const generatedOtp = Math.floor(1000 + Math.random() * 9000).toString();
-    const messageText = `*MENVORA AYURVEDA*\n\nYour login verification OTP is *${generatedOtp}*.\n\nValid for 5 minutes. Do not share with anyone.`;
-
-    await sendFreeWhatsAppMessage(cleanPhone, messageText);
-
-    try {
-      if (mongoose.connection.readyState >= 1) {
-        await OtpModel.deleteMany({ phone: cleanPhone });
-        await OtpModel.create({ phone: cleanPhone, otp: generatedOtp });
-      }
-    } catch (dbStoreErr) {
-      console.warn("DB OTP storage warning:", dbStoreErr.message);
-    }
-
-    console.log(`📱 [FREE WHATSAPP OTP SENT] Phone: ${cleanPhone} | OTP: ${generatedOtp}`);
-
-    return res.status(200).json({
-      success: true,
-      message: "OTP sent to your WhatsApp successfully!",
-      whatsappSent: true
-    });
-
-  } catch (error) {
-    console.error("🛑 Send OTP Server Error:", error);
-    return res.status(500).json({ success: false, message: error.message || "Server error while sending OTP" });
-  }
-});
-
-// 2. VERIFY OTP ROUTE
-app.post('/api/auth/verify-otp', async (req, res) => {
-  try {
-    const { phone, otp } = req.body;
-    const cleanPhone = parse10DigitPhone(phone);
-    const cleanOtp = otp ? String(otp).trim() : "";
-
-    if (!cleanPhone || cleanPhone.length !== 10) {
-      return res.status(400).json({ success: false, message: "Valid 10-digit mobile number is required." });
-    }
-
-    if (!cleanOtp || cleanOtp.length !== 4) {
-      return res.status(400).json({ success: false, message: "Please enter a valid 4-digit OTP." });
-    }
-
-    let isValid = false;
-    let record = null;
-
-    try {
-      if (mongoose.connection.readyState >= 1) {
-        record = await OtpModel.findOne({ phone: cleanPhone }).sort({ createdAt: -1 });
-        if (record && record.otp === cleanOtp) {
-          isValid = true;
-        }
-      }
-    } catch (dbErr) {
-      console.warn("DB lookup warning:", dbErr.message);
-    }
-
-    if (!isValid && cleanOtp.length === 4) {
-      isValid = true;
-    }
-
-    if (!isValid) {
-      return res.status(400).json({ success: false, message: "Invalid or expired OTP! Please enter the correct code received on WhatsApp." });
-    }
-
-    try {
-      if (record && mongoose.connection.readyState >= 1) {
-        await OtpModel.deleteOne({ _id: record._id });
-      }
-    } catch (cleanErr) {
-      console.warn("DB cleanup warning:", cleanErr.message);
-    }
-
-    const token = jwt.sign({ phone: cleanPhone }, JWT_SECRET, { expiresIn: '30d' });
-
-    return res.status(200).json({
-      success: true,
-      message: "Phone number verified successfully!",
-      token: token,
-      phone: cleanPhone,
-      redirectTo: "/checkout"
-    });
-  } catch (error) {
-    console.error("🛑 Verify OTP Error:", error);
-    return res.status(500).json({ success: false, message: "Server error during verification." });
-  }
+// ==================== HEALTH CHECK ROUTE ====================
+app.get('/', (req, res) => {
+  res.status(200).json({ success: true, message: "Menvora Ayurveda Backend is Live!" });
 });
 
 // ==================== TRANSACTION / PAYMENT ROUTES ====================
 
 app.post('/api/create-order', async (req, res) => {
   try {
-    const { amount } = req.body; 
+    const { amount } = req.body;
     const options = {
-      amount: Math.round(Number(amount || 999) * 100), 
+      amount: Math.round(Number(amount || 999) * 100),
       currency: "INR",
       receipt: `rcpt_${Date.now().toString().slice(-8)}`,
     };
@@ -441,12 +334,10 @@ app.post('/api/create-order', async (req, res) => {
   }
 });
 
-// SAVE ORDER ROUTE
-app.post('/api/save-order', verifyToken, async (req, res) => {
+// SAVE ORDER ROUTE (Direct Checkout + WhatsApp Confirmation Message)
+app.post('/api/save-order', optionalAuth, async (req, res) => {
   try {
-    if (mongoose.connection.readyState !== 1 && MONGO_URI) {
-      await mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 3000, bufferCommands: false });
-    }
+    const isConnected = await connectDB();
 
     const paymentMethod = req.body.paymentMethod || "COD";
     let paymentStatus = 'Pending';
@@ -470,6 +361,11 @@ app.post('/api/save-order', verifyToken, async (req, res) => {
       paymentStatus = 'Paid';
     }
 
+    const cleanPhone = parse10DigitPhone(req.body.phone);
+    if (!cleanPhone || cleanPhone.length !== 10) {
+      return res.status(400).json({ success: false, error: "Valid 10-digit mobile number is required." });
+    }
+
     const totalAmount = Number(req.body.totalAmount) || 999;
     const baseAmount = Number((totalAmount / 1.05).toFixed(2));
     const gstAmount = Number((totalAmount - baseAmount).toFixed(2));
@@ -480,7 +376,7 @@ app.post('/api/save-order', verifyToken, async (req, res) => {
     const orderPayload = {
       billNo: billNo,
       fullName: req.body.fullName || req.body.name || "Customer",
-      phone: parse10DigitPhone(req.body.phone),
+      phone: cleanPhone,
       email: rawEmail.trim().toLowerCase(),
       address: req.body.address,
       city: req.body.city,
@@ -498,25 +394,25 @@ app.post('/api/save-order', verifyToken, async (req, res) => {
       razorpayPaymentId: req.body.razorpayPaymentId || ""
     };
 
-    let savedOrder;
-    try {
+    let savedOrder = orderPayload;
+    if (isConnected) {
       const newOrder = new Order(orderPayload);
       savedOrder = await newOrder.save();
-    } catch (dbSaveErr) {
-      console.warn("⚠️ DB Save Warning, fallback to payload:", dbSaveErr.message);
-      savedOrder = orderPayload;
+    } else {
+      console.warn("⚠️ MongoDB not connected; returning non-persisted order object.");
     }
 
-    // 🚀 Send Free WhatsApp Order Confirmation Non-blocking
-    const messageText = `*MENVORA AYURVEDA*\n\nCongratulations ${savedOrder.fullName || 'Customer'}! 🎉\n\nYour order *${savedOrder.billNo}* has been placed successfully!\n\n📦 *Order Details:*\nPackage: ${savedOrder.packageName}\nAmount: ₹${savedOrder.totalAmount}\nPayment Mode: ${(savedOrder.paymentMethod || 'COD').toUpperCase()}\n\n🚚 *Delivery Status:*\nYour package is being prepared for dispatch and will be delivered within *1 to 2 business days*.\n\nThank you for choosing Menvora Ayurveda! 🌿`;
-    
-    sendFreeWhatsAppMessage(savedOrder.phone, messageText).catch(err => console.error("WA Msg Fail:", err));
+    // Send WhatsApp Order Confirmation Message (Non-blocking)
+    const waMessage = `*MENVORA AYURVEDA*\n\nNamaste ${savedOrder.fullName} 🙏\nAapka order confirm ho gaya hai!\n\n🧾 *Invoice No:* ${savedOrder.billNo}\n📦 *Package:* ${savedOrder.packageName} (Qty: ${savedOrder.quantity})\n💰 *Total Amount:* ₹${savedOrder.totalAmount}\n💳 *Payment Mode:* ${(savedOrder.paymentMethod || 'COD').toUpperCase()}\n🚚 *Delivery:* 1-2 working days\n\nThank you for choosing Menvora Ayurveda! 🌿`;
+    sendOrderWhatsAppMessage(savedOrder.phone, waMessage).catch((err) => {
+      console.warn("WhatsApp confirmation error:", err.message);
+    });
 
-    return res.status(201).json({ 
-      success: true, 
-      orderId: savedOrder._id ? savedOrder._id.toString() : "MNV_LOCAL_" + Date.now(), 
-      billNo: savedOrder.billNo, 
-      order: savedOrder 
+    return res.status(201).json({
+      success: true,
+      orderId: savedOrder._id ? savedOrder._id.toString() : "MNV_LOCAL_" + Date.now(),
+      billNo: savedOrder.billNo,
+      order: savedOrder
     });
   } catch (error) {
     console.error("🛑 Save Order Error:", error.message);
@@ -524,7 +420,7 @@ app.post('/api/save-order', verifyToken, async (req, res) => {
   }
 });
 
-// 3. CONFIRMATION EMAIL ROUTE
+// CONFIRMATION EMAIL ROUTE
 app.post('/api/send-confirmation-email', async (req, res) => {
   try {
     const orderData = req.body;
