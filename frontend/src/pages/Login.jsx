@@ -2,7 +2,10 @@ import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
 
-const BACKEND_URL = "https://menvora-backend.onrender.com";
+// 🚀 SMART URL: Agar localhost par hain toh localhost:5000 use karega, warna Render cloud URL
+const BACKEND_URL = window.location.hostname === "localhost" 
+  ? "http://localhost:5000" 
+  : "https://menvora-backend.onrender.com";
 
 export default function Login({ isOpen = true, onClose, onSuccess }) {
   const [phone, setPhone] = useState("");
