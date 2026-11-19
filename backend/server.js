@@ -5,14 +5,22 @@ const nodemailer = require('nodemailer');
 const PDFDocument = require('pdfkit');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const {
-  default: makeWASocket,
-  useMultiFileAuthState,
-  DisconnectReason,
-  fetchLatestBaileysVersion
-} = require('@whiskeysockets/baileys');
-const pino = require('pino');
 require('dotenv').config();
+
+let makeWASocket = null;
+let useMultiFileAuthState = null;
+let DisconnectReason = null;
+let fetchLatestBaileysVersion = null;
+let pino = null;
+
+if (!process.env.VERCEL) {
+  const baileys = require('@whiskeysockets/baileys');
+  makeWASocket = baileys.default;
+  useMultiFileAuthState = baileys.useMultiFileAuthState;
+  DisconnectReason = baileys.DisconnectReason;
+  fetchLatestBaileysVersion = baileys.fetchLatestBaileysVersion;
+  pino = require('pino');
+}
 
 const app = express();
 
@@ -45,7 +53,7 @@ let latestPairingCode = null;
 let isWhatsAppConnected = false;
 
 async function connectToWhatsApp() {
-  if (process.env.VERCEL) {
+  if (process.env.VERCEL || !makeWASocket) {
     return;
   }
   try {
@@ -174,27 +182,33 @@ async function sendOrderWhatsAppMessage(phone, messageText) {
 
 // ROBUST NON-BLOCKING MONGO DB CONNECTION
 let cachedDbPromise = null;
+let lastDbError = "";
 
 async function connectDB() {
   if (mongoose.connection.readyState === 1) {
+    lastDbError = "";
     return true;
   }
   if (!MONGO_URI) {
-    console.warn("⚠️ MONGO_URI environment variable is not set!");
+    lastDbError = "MONGO_URI environment variable is missing.";
+    console.warn("⚠️", lastDbError);
     return false;
   }
   if (!cachedDbPromise) {
     cachedDbPromise = mongoose
       .connect(MONGO_URI, {
-        serverSelectionTimeoutMS: 5000,
+        serverSelectionTimeoutMS: 8000,
+        socketTimeoutMS: 15000,
         bufferCommands: false,
       })
       .then(() => {
+        lastDbError = "";
         console.log("🔥 MongoDB Connected Successfully.");
         return true;
       })
       .catch((err) => {
         cachedDbPromise = null;
+        lastDbError = err.message;
         console.error("🛑 DB Connection Error:", err.message);
         return false;
       });
@@ -202,17 +216,12 @@ async function connectDB() {
   return cachedDbPromise;
 }
 
-app.use(async (req, res, next) => {
-  await connectDB();
-  next();
-});
-
 // SCHEMAS & MODELS
 const orderSchema = new mongoose.Schema({
   billNo: { type: String, required: true, unique: true },
   fullName: { type: String, required: true },
   phone: { type: String, required: true },
-  email: { type: String, required: true },
+  email: { type: String, default: "" },
   address: { type: String, required: true },
   city: { type: String, required: true },
   state: { type: String, required: true },
@@ -368,10 +377,13 @@ function generateFastBillNo() {
 }
 
 // ==================== HEALTH CHECK ROUTE ====================
-app.get('/', (req, res) => {
+app.get('/', async (req, res) => {
+  const dbConnected = await connectDB();
   res.status(200).json({
     success: true,
     message: "Menvora Ayurveda Backend is Live!",
+    dbConnected,
+    dbError: lastDbError || undefined,
     whatsappConnected: isWhatsAppConnected
   });
 });
@@ -380,17 +392,28 @@ app.get('/', (req, res) => {
 
 app.post('/api/create-order', async (req, res) => {
   try {
-    const { amount } = req.body;
+    const rawAmount = Number(req.body?.amount);
+    const validAmount = Number.isFinite(rawAmount) && rawAmount > 0 ? rawAmount : 999;
+
     const options = {
-      amount: Math.round(Number(amount || 999) * 100),
+      amount: Math.round(validAmount * 100),
       currency: "INR",
       receipt: `rcpt_${Date.now().toString().slice(-8)}`,
     };
     const order = await razorpay.orders.create(options);
-    res.status(200).json(order);
+    return res.status(200).json(order);
   } catch (error) {
-    console.error("🛑 Razorpay Order Create Error:", error);
-    res.status(500).json({ success: false, message: "Razorpay Error", error: error.message });
+    const razorpayDetail =
+      error?.error?.description ||
+      error?.description ||
+      error?.message ||
+      "Unknown Razorpay Error";
+    console.error("🛑 Razorpay Order Create Error:", razorpayDetail, error);
+    return res.status(500).json({
+      success: false,
+      message: "Razorpay Error",
+      error: razorpayDetail
+    });
   }
 });
 
@@ -398,6 +421,12 @@ app.post('/api/create-order', async (req, res) => {
 app.post('/api/save-order', optionalAuth, async (req, res) => {
   try {
     const isConnected = await connectDB();
+    if (!isConnected) {
+      return res.status(503).json({
+        success: false,
+        error: `Database connection failed: ${lastDbError || "Unable to connect to MongoDB"}`
+      });
+    }
 
     const paymentMethod = req.body.paymentMethod || "COD";
     let paymentStatus = 'Pending';
@@ -435,14 +464,14 @@ app.post('/api/save-order', optionalAuth, async (req, res) => {
 
     const orderPayload = {
       billNo: billNo,
-      fullName: req.body.fullName || req.body.name || "Customer",
+      fullName: (req.body.fullName || req.body.name || "Customer").trim(),
       phone: cleanPhone,
       email: rawEmail.trim().toLowerCase(),
-      address: req.body.address,
-      city: req.body.city,
-      state: req.body.state,
-      pincode: req.body.pincode,
-      landmark: req.body.landmark || "",
+      address: (req.body.address || "Not Provided").trim(),
+      city: (req.body.city || "Not Provided").trim(),
+      state: (req.body.state || "Not Provided").trim(),
+      pincode: (req.body.pincode || "000000").trim(),
+      landmark: (req.body.landmark || "").trim(),
       packageName: req.body.packageName || req.body.product || "Menvora Ayurvedic Product",
       quantity: Number(req.body.quantity) || 1,
       baseAmount,
@@ -454,13 +483,8 @@ app.post('/api/save-order', optionalAuth, async (req, res) => {
       razorpayPaymentId: req.body.razorpayPaymentId || ""
     };
 
-    let savedOrder = orderPayload;
-    if (isConnected) {
-      const newOrder = new Order(orderPayload);
-      savedOrder = await newOrder.save();
-    } else {
-      console.warn("⚠️ MongoDB not connected; returning non-persisted order object.");
-    }
+    const newOrder = new Order(orderPayload);
+    const savedOrder = await newOrder.save();
 
     if (!process.env.VERCEL && isWhatsAppConnected) {
       const waMessage = `*MENVORA AYURVEDA*\n\nNamaste ${savedOrder.fullName} 🙏\nAapka order confirm ho gaya hai!\n\n🧾 *Invoice No:* ${savedOrder.billNo}\n📦 *Package:* ${savedOrder.packageName} (Qty: ${savedOrder.quantity})\n💰 *Total Amount:* ₹${savedOrder.totalAmount}\n💳 *Payment Mode:* ${(savedOrder.paymentMethod || 'COD').toUpperCase()}\n🚚 *Delivery:* 1-2 working days\n\nThank you for choosing Menvora Ayurveda! 🌿`;
@@ -471,7 +495,7 @@ app.post('/api/save-order', optionalAuth, async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      orderId: savedOrder._id ? savedOrder._id.toString() : "MNV_LOCAL_" + Date.now(),
+      orderId: savedOrder._id.toString(),
       billNo: savedOrder.billNo,
       order: savedOrder
     });
