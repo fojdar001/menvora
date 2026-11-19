@@ -15,7 +15,7 @@ import {
 import "../components/Checkout/Checkout.css";
 
 const BACKEND_URL = (
-  process.env.REACT_APP_BACKEND_URL || "https://menvora-backend.onrender.com"
+  process.env.REACT_APP_BACKEND_URL || "https://menvora-backend.vercel.app"
 ).replace(/\/$/, "");
 const RAZORPAY_KEY =
   process.env.REACT_APP_RAZORPAY_KEY || "rzp_live_TsUqPWXB1ZVKKJ";
@@ -103,11 +103,39 @@ export default function Checkout() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // Helper: Send Confirmation Email with PDF Invoice
+  const sendConfirmationEmail = async (emailPayload) => {
+    try {
+      const emailRes = await fetch(`${BACKEND_URL}/api/send-confirmation-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(emailPayload),
+      });
+      const emailData = await emailRes.json();
+
+      if (!emailRes.ok || !emailData.success) {
+        console.error("Email API failed:", emailData);
+        toast.warn(
+          emailData.message ||
+            emailData.error ||
+            "Order placed, but confirmation email could not be sent."
+        );
+        return false;
+      }
+      return true;
+    } catch (emailErr) {
+      console.error("Confirmation email request error:", emailErr);
+      toast.warn("Order placed, but confirmation email request failed.");
+      return false;
+    }
+  };
+
   // Process COD Order
   const processCodOrder = async () => {
     try {
       setLoading(true);
       const cleanPhone = formData.phone.trim().replace(/\D/g, "");
+      const cleanEmail = formData.email.trim().toLowerCase();
       const token = localStorage.getItem("menvora_token");
 
       const headers = {
@@ -120,7 +148,7 @@ export default function Checkout() {
       const orderData = {
         fullName: formData.fullName.trim(),
         phone: cleanPhone,
-        email: formData.email.trim().toLowerCase(),
+        email: cleanEmail,
         address: formData.address.trim(),
         city: formData.city.trim(),
         state: formData.state.trim(),
@@ -128,6 +156,8 @@ export default function Checkout() {
         landmark: formData.landmark ? formData.landmark.trim() : "",
         packageName,
         quantity,
+        baseAmount: basePrice,
+        gstAmount,
         totalAmount: total,
         paymentMethod: "COD",
         paymentStatus: "Pending",
@@ -152,20 +182,11 @@ export default function Checkout() {
       const generatedBillNo = savedResData.billNo;
       const savedOrderId = savedResData.orderId;
 
-      // Email Dispatch
-      try {
-        await fetch(`${BACKEND_URL}/api/send-confirmation-email`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...orderData,
-            billNo: generatedBillNo,
-            orderId: savedOrderId,
-          }),
-        });
-      } catch (emailErr) {
-        console.warn("Confirmation email error:", emailErr);
-      }
+      await sendConfirmationEmail({
+        ...orderData,
+        billNo: generatedBillNo,
+        orderId: savedOrderId,
+      });
 
       setLoading(false);
       navigate("/order-success", {
@@ -208,6 +229,7 @@ export default function Checkout() {
       }
 
       const cleanPhone = formData.phone.trim().replace(/\D/g, "");
+      const cleanEmail = formData.email.trim().toLowerCase();
 
       const options = {
         key: RAZORPAY_KEY,
@@ -229,7 +251,7 @@ export default function Checkout() {
             const payload = {
               fullName: formData.fullName.trim(),
               phone: cleanPhone,
-              email: formData.email.trim().toLowerCase(),
+              email: cleanEmail,
               address: formData.address.trim(),
               city: formData.city.trim(),
               state: formData.state.trim(),
@@ -237,6 +259,8 @@ export default function Checkout() {
               landmark: formData.landmark ? formData.landmark.trim() : "",
               packageName,
               quantity,
+              baseAmount: basePrice,
+              gstAmount,
               totalAmount: total,
               paymentMethod,
               razorpayOrderId: orderData.id,
@@ -258,20 +282,12 @@ export default function Checkout() {
 
             localStorage.setItem("menvora_phone", cleanPhone);
 
-            try {
-              await fetch(`${BACKEND_URL}/api/send-confirmation-email`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  ...payload,
-                  paymentStatus: "Paid",
-                  billNo: saveData.billNo,
-                  orderId: saveData.orderId,
-                }),
-              });
-            } catch (emailErr) {
-              console.warn("Email dispatch error:", emailErr);
-            }
+            await sendConfirmationEmail({
+              ...payload,
+              paymentStatus: "Paid",
+              billNo: saveData.billNo,
+              orderId: saveData.orderId,
+            });
 
             setLoading(false);
             navigate("/order-success", {
@@ -295,7 +311,7 @@ export default function Checkout() {
         },
         prefill: {
           name: formData.fullName.trim(),
-          email: formData.email.trim(),
+          email: cleanEmail,
           contact: cleanPhone,
         },
         theme: { color: "#0F8A43" },
