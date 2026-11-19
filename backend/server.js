@@ -5,10 +5,13 @@ const nodemailer = require('nodemailer');
 const PDFDocument = require('pdfkit');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const {
+  default: makeWASocket,
+  useMultiFileAuthState,
+  DisconnectReason,
+  fetchLatestBaileysVersion
+} = require('@whiskeysockets/baileys');
 const pino = require('pino');
-const qrcode = require('qrcode');
-const qrcodeTerminal = require('qrcode-terminal');
 require('dotenv').config();
 
 const app = express();
@@ -16,12 +19,11 @@ const app = express();
 // ==================== UNIVERSAL CORS FIX ====================
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
 
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return res.status(204).end();
   }
   next();
 });
@@ -34,38 +36,59 @@ const MONGO_URI = process.env.MONGO_URI;
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || "rzp_live_TsUqPWXB1ZVKKJ";
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || "JdMrJsY9yH6vgVijtMwbZ2iI";
 
-// ==================== WHATSAPP BOT (ORDER CONFIRMATION ONLY - NO OTP) ====================
+// WHATSAPP BUSINESS NUMBER (91 + 9211881387)
+const WHATSAPP_BOT_NUMBER = (process.env.WHATSAPP_BOT_NUMBER || "919211881387").replace(/\D/g, "");
+
+// ==================== WHATSAPP BOT (NON-VERCEL PERSISTENT SERVERS ONLY) ====================
 let sock = null;
-let latestQR = null;
+let latestPairingCode = null;
+let isWhatsAppConnected = false;
 
 async function connectToWhatsApp() {
+  if (process.env.VERCEL) {
+    return;
+  }
   try {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+    const { version } = await fetchLatestBaileysVersion();
 
     sock = makeWASocket({
+      version,
       auth: state,
-      printQRInTerminal: true,
-      logger: pino({ level: 'silent' })
+      printQRInTerminal: false,
+      logger: pino({ level: 'silent' }),
+      browser: ["Ubuntu", "Chrome", "20.0.04"]
     });
 
-    sock.ev.on('connection.update', (update) => {
-      const { connection, lastDisconnect, qr } = update;
+    if (!sock.authState.creds.registered) {
+      setTimeout(async () => {
+        try {
+          const code = await sock.requestPairingCode(WHATSAPP_BOT_NUMBER);
+          latestPairingCode = code;
+          console.log(`\n========================================`);
+          console.log(`📲 WHATSAPP PAIRING CODE FOR +${WHATSAPP_BOT_NUMBER}: ${code}`);
+          console.log(`👉 WhatsApp Business -> Linked Devices -> Link a Device -> Link with phone number instead -> Enter: ${code}`);
+          console.log(`========================================\n`);
+        } catch (pairErr) {
+          console.error("🛑 Pairing Code Request Error:", pairErr.message);
+        }
+      }, 3000);
+    }
 
-      if (qr) {
-        latestQR = qr;
-        console.log('📌 Scan this WhatsApp QR code or visit /qr in browser:');
-        qrcodeTerminal.generate(qr, { small: true });
-      }
+    sock.ev.on('connection.update', (update) => {
+      const { connection, lastDisconnect } = update;
 
       if (connection === 'close') {
+        isWhatsAppConnected = false;
         const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
         console.log('⚠️ WhatsApp connection closed. Reconnecting...', shouldReconnect);
         if (shouldReconnect) {
           connectToWhatsApp();
         }
       } else if (connection === 'open') {
-        latestQR = null;
-        console.log('✅ WhatsApp Bot Connected for Order Confirmations!');
+        isWhatsAppConnected = true;
+        latestPairingCode = null;
+        console.log(`✅ WhatsApp Business (+${WHATSAPP_BOT_NUMBER}) Connected Successfully!`);
       }
     });
 
@@ -75,24 +98,50 @@ async function connectToWhatsApp() {
   }
 }
 
-connectToWhatsApp();
+if (!process.env.VERCEL) {
+  connectToWhatsApp();
+}
 
-app.get('/qr', async (req, res) => {
-  if (!latestQR) {
-    return res.send(`<h2>✅ WhatsApp is already connected or QR code is not generated yet! Check server logs.</h2>`);
-  }
-  try {
-    const qrImage = await qrcode.toDataURL(latestQR);
-    res.send(`
-      <div style="text-align: center; margin-top: 50px; font-family: Arial;">
-        <h2>Scan WhatsApp QR Code for Menvora Ayurveda</h2>
-        <p>Open WhatsApp on your phone -> Linked Devices -> Link a Device</p>
-        <img src="${qrImage}" alt="WhatsApp QR Code" style="width: 300px; height: 300px; border: 2px solid #ccc; padding: 10px; border-radius: 10px;" />
+app.get('/pair', (req, res) => {
+  if (process.env.VERCEL) {
+    return res.status(200).send(`
+      <div style="text-align:center; margin-top:60px; font-family:Arial;">
+        <h2>WhatsApp Pairing is disabled on Vercel Serverless</h2>
+        <p>Order saving and PDF confirmation emails work directly here. Run locally or on a persistent server for WhatsApp bot pairing.</p>
       </div>
     `);
-  } catch (err) {
-    res.status(500).send("Error generating QR code image.");
   }
+
+  if (isWhatsAppConnected) {
+    return res.send(`
+      <div style="text-align:center; margin-top:60px; font-family:Arial;">
+        <h2 style="color:#0F8A43;">✅ WhatsApp Business (+${WHATSAPP_BOT_NUMBER}) is Connected!</h2>
+        <p>Order confirmation messages will be sent automatically after checkout.</p>
+      </div>
+    `);
+  }
+
+  if (!latestPairingCode) {
+    return res.send(`
+      <div style="text-align:center; margin-top:60px; font-family:Arial;">
+        <h2>⏳ Generating Pairing Code for +${WHATSAPP_BOT_NUMBER}...</h2>
+        <p>Page will refresh automatically in 4 seconds.</p>
+        <script>setTimeout(() => location.reload(), 4000);</script>
+      </div>
+    `);
+  }
+
+  res.send(`
+    <div style="text-align:center; margin-top:60px; font-family:Arial;">
+      <h2>📲 Link WhatsApp Business (+${WHATSAPP_BOT_NUMBER})</h2>
+      <p>1. Open <b>WhatsApp Business</b> on your phone</p>
+      <p>2. Go to <b>Linked Devices -> Link a Device -> Link with phone number instead</b></p>
+      <p>3. Enter this 8-character pairing code:</p>
+      <div style="display:inline-block; margin-top:15px; padding:18px 32px; font-size:32px; font-weight:bold; letter-spacing:6px; background:#f0fdf4; border:2px solid #0F8A43; border-radius:12px; color:#0F8A43;">
+        ${latestPairingCode}
+      </div>
+    </div>
+  `);
 });
 
 // HELPER: Normalize Phone Number (Ensure 10 digits)
@@ -107,8 +156,7 @@ function parse10DigitPhone(phone) {
 
 async function sendOrderWhatsAppMessage(phone, messageText) {
   try {
-    if (!sock) {
-      console.warn("⚠️ WhatsApp socket not ready yet.");
+    if (process.env.VERCEL || !sock || !isWhatsAppConnected) {
       return false;
     }
     const cleanPhone = parse10DigitPhone(phone);
@@ -116,7 +164,7 @@ async function sendOrderWhatsAppMessage(phone, messageText) {
 
     const jid = `91${cleanPhone}@s.whatsapp.net`;
     await sock.sendMessage(jid, { text: messageText });
-    console.log(`💬 WhatsApp order message sent to 91${cleanPhone}`);
+    console.log(`💬 WhatsApp order confirmation sent to 91${cleanPhone}`);
     return true;
   } catch (err) {
     console.error("🛑 WhatsApp Send Error:", err.message);
@@ -125,6 +173,8 @@ async function sendOrderWhatsAppMessage(phone, messageText) {
 }
 
 // ROBUST NON-BLOCKING MONGO DB CONNECTION
+let cachedDbPromise = null;
+
 async function connectDB() {
   if (mongoose.connection.readyState === 1) {
     return true;
@@ -133,17 +183,23 @@ async function connectDB() {
     console.warn("⚠️ MONGO_URI environment variable is not set!");
     return false;
   }
-  try {
-    await mongoose.connect(MONGO_URI, {
-      serverSelectionTimeoutMS: 5000,
-      bufferCommands: false,
-    });
-    console.log("🔥 MongoDB Connected Successfully.");
-    return true;
-  } catch (err) {
-    console.error("🛑 DB Connection Error:", err.message);
-    return false;
+  if (!cachedDbPromise) {
+    cachedDbPromise = mongoose
+      .connect(MONGO_URI, {
+        serverSelectionTimeoutMS: 5000,
+        bufferCommands: false,
+      })
+      .then(() => {
+        console.log("🔥 MongoDB Connected Successfully.");
+        return true;
+      })
+      .catch((err) => {
+        cachedDbPromise = null;
+        console.error("🛑 DB Connection Error:", err.message);
+        return false;
+      });
   }
+  return cachedDbPromise;
 }
 
 app.use(async (req, res, next) => {
@@ -313,7 +369,11 @@ function generateFastBillNo() {
 
 // ==================== HEALTH CHECK ROUTE ====================
 app.get('/', (req, res) => {
-  res.status(200).json({ success: true, message: "Menvora Ayurveda Backend is Live!" });
+  res.status(200).json({
+    success: true,
+    message: "Menvora Ayurveda Backend is Live!",
+    whatsappConnected: isWhatsAppConnected
+  });
 });
 
 // ==================== TRANSACTION / PAYMENT ROUTES ====================
@@ -334,7 +394,7 @@ app.post('/api/create-order', async (req, res) => {
   }
 });
 
-// SAVE ORDER ROUTE (Direct Checkout + WhatsApp Confirmation Message)
+// SAVE ORDER ROUTE (Direct Checkout)
 app.post('/api/save-order', optionalAuth, async (req, res) => {
   try {
     const isConnected = await connectDB();
@@ -402,11 +462,12 @@ app.post('/api/save-order', optionalAuth, async (req, res) => {
       console.warn("⚠️ MongoDB not connected; returning non-persisted order object.");
     }
 
-    // Send WhatsApp Order Confirmation Message (Non-blocking)
-    const waMessage = `*MENVORA AYURVEDA*\n\nNamaste ${savedOrder.fullName} 🙏\nAapka order confirm ho gaya hai!\n\n🧾 *Invoice No:* ${savedOrder.billNo}\n📦 *Package:* ${savedOrder.packageName} (Qty: ${savedOrder.quantity})\n💰 *Total Amount:* ₹${savedOrder.totalAmount}\n💳 *Payment Mode:* ${(savedOrder.paymentMethod || 'COD').toUpperCase()}\n🚚 *Delivery:* 1-2 working days\n\nThank you for choosing Menvora Ayurveda! 🌿`;
-    sendOrderWhatsAppMessage(savedOrder.phone, waMessage).catch((err) => {
-      console.warn("WhatsApp confirmation error:", err.message);
-    });
+    if (!process.env.VERCEL && isWhatsAppConnected) {
+      const waMessage = `*MENVORA AYURVEDA*\n\nNamaste ${savedOrder.fullName} 🙏\nAapka order confirm ho gaya hai!\n\n🧾 *Invoice No:* ${savedOrder.billNo}\n📦 *Package:* ${savedOrder.packageName} (Qty: ${savedOrder.quantity})\n💰 *Total Amount:* ₹${savedOrder.totalAmount}\n💳 *Payment Mode:* ${(savedOrder.paymentMethod || 'COD').toUpperCase()}\n🚚 *Delivery:* 1-2 working days\n\nThank you for choosing Menvora Ayurveda! 🌿`;
+      sendOrderWhatsAppMessage(savedOrder.phone, waMessage).catch((err) => {
+        console.warn("WhatsApp confirmation error:", err.message);
+      });
+    }
 
     return res.status(201).json({
       success: true,
@@ -528,4 +589,8 @@ app.post('/api/send-confirmation-email', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+}
+
+module.exports = app;
